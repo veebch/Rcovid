@@ -1,0 +1,1209 @@
+---
+pagetitle: "COVID19: Latest numbers and analysis"
+output:
+  html_document:
+    toc: false
+    self_contained: false
+    lightbox: false
+    includes:
+       in_header: ./header.html
+---
+
+  
+
+<br>
+
+<div class = "row">
+<div class = "col-md-6">
+</div>
+<div class = "col-md-6">
+<a href="/">
+<img src="https://llvll.ch/images/llvlllogo.svg" style="width:120px; float:right;">
+</a>
+</div>
+</div>
+
+***
+
+# <i class="fas fa-globe-europe"  style="color:#a0a0a0"></i> Global COVID19
+<span style="color:#a0a0a0">Updated: `r format(Sys.time(), format='%H:%M, %B %d, %Y (%Z)')`</span>
+
+***
+
+## Cases: <span style="color:#009AD0">`r prettyNum(total.cases.worldometer, big.mark=",", scientific=F)`</span>
+<span style="color:#a0a0a0">&nbsp;[+`r prettyNum(worldometer$NewCases[worldometer$Country.Other=="World"], big.mark=",", scientific=F)` cases today]</span> [^1]
+
+## Recovered: <span style="color:#67d000"> `r prettyNum(total.recovered.worldometer, big.mark=",", scientific=F)`</span>
+
+## Deaths: <span style="color:red">`r prettyNum(total.deaths.worldometer, big.mark=",", scientific=F)`</span>
+<span style="color:#a0a0a0">&nbsp;[+`r prettyNum(worldometer$NewDeaths[worldometer$Country.Other=="World"], big.mark=",", scientific=F)`deaths today]</span>
+<br>
+
+ 1 in `r round(1/(total.deaths.worldometer/total.cases.worldometer))` cases are fatal[^2]: `r toperson(round(1/(total.deaths.worldometer/total.cases.worldometer)),"#009AD0")` 
+
+<br>
+<span style="color:#009AD0">`r prettyNum(growth$newconfirmed[growth$Date==maxdate], big.mark=",", scientific=F)`</span> cases yesterday <br>Last 28 days: `r sparkline(tail(growth$newconfirmed,28),type="bar",barColor="#009AD0", highlightColor= 'blue',width = 150,tooltipFormatter = htmlwidgets::JS(
+    sprintf(
+      "function(sparkline, options, field){
+  debugger;
+  return %s[field[0].offset] + '<br/>' + 'Cases:' + field[0].value.toLocaleString();
+}",
+      jsonlite::toJSON(
+        format(
+          format(seq.Date(min(tail(growth$Date,28)),by="day",length.out =28),"%a %b %d")
+        )
+      )
+    )
+  )
+)
+`
+<br><br>
+<span style="color:red">`r prettyNum(growth$newdeath[growth$Date==maxdate], big.mark=",", scientific=F)`</span> deaths yesterday <br>Last 28 days:  `r sparkline(tail(growth$newdeath,28),type="bar",barColor="red", highlightColor= 'blue' ,width = 150, tooltipFormatter = htmlwidgets::JS(
+    sprintf(
+      "function(sparkline, options, field){
+  debugger;
+  return %s[field[0].offset] + '<br/>' + 'Deaths:' + field[0].value.toLocaleString();
+}",
+      jsonlite::toJSON(
+        format(
+          format(seq.Date(min(tail(growth$Date,28)),by="day",length.out =28), "%a %b %d")
+        )
+      )
+    )
+  )
+)
+`
+<br><br><br><br>
+
+
+[^1]: Number in square brackets: reported since midnight today (GMT+0)
+[^2]: For multiple reasons, the number of deaths divided by the number of cases is not the mortality rate of COVID19. It is the percentage of individuals identified to have COVID19 who are now dead. 
+
+***
+
+
+# Development of the Pandemic
+
+The following plots use the Johns Hopkins CSSE dataset which is less frequently updated than the live headline figures which are taken from Worldometers.
+
+
+## Global Cases of COVID19
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.height=4 }
+
+growth.china.only<-growth.by.country %>% filter(Country.Region=="China")
+
+growth$active<-growth$confirmed-growth$death-growth$recovered
+
+fig <- plot_ly(type = 'scatter', mode = 'lines')
+
+
+
+
+
+fig <- fig %>% add_trace(
+                x=~growth.china.only$Date,
+                y= ~growth.china.only$confirmed,
+                fill = 'tozeroy',
+                fillcolor = 'rgba(67,d0,00,.5)',
+                line = list(
+                   color = '#67d000'
+                ),
+                name = "China only",
+                hoverinfo = "text",
+                text = paste("China only<br>cases:",prettyNum(growth.china.only$confirmed, big.mark=",", scientific=F),"<br>Deaths:",prettyNum( growth.china.only$death, big.mark=",", scientific=F),"<br>",format(growth.china.only$Date, "%a %b %d"))
+               )
+
+fig <- fig %>% add_trace(
+                 x = ~growth$Date, 
+                 y = ~growth$confirmed, 
+                 fill = 'tonexty',
+                 fillcolor = 'rgba(00,9a,d0,.5)',
+                 line = list(
+                      color = '#009ad0'
+                 ),
+                 text = paste("All<br>cases:",prettyNum(growth$confirmed, big.mark=",", scientific=F),"<br>Deaths:",prettyNum(growth$death, big.mark=",", scientific=F),"<br>",format(growth$Date, "%a %b %d")),
+                 hoverinfo = "text",
+                 name = "All Countries"
+              )
+
+fig<- fig %>% config(displayModeBar = FALSE)
+fig <- fig %>% layout(legend = list(x = .1, y = .8))
+fig <- layout(fig, xaxis = list(title = "Date"),
+                    yaxis = list(title = "Total cases"))
+
+fig
+
+  
+```
+
+
+
+# Number of deaths per day {#gdpd}
+
+
+<br>
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.height=4 }
+library(zoo)
+growth<-growth %>% arrange(Date) %>%
+       mutate(ma2=rollapply(newdeath,7,mean,align='right',fill=NA))
+
+if(!file.exists("growthtime.html") | as.numeric(Sys.Date()-(as.Date(file.info("growthtime.html")$mtime-6*60*60)))>0) { 
+
+fig <- plot_ly(hoverinfo = "text", text = paste(format(growth$Date, "%a %b %d"),"<br>Deaths:",prettyNum(growth$newdeath, big.mark=",", scientific=F),sep=""),type = 'scatter', mode = 'lines')
+fig <- fig %>% add_trace( x = ~growth$Date,
+                          y = ~growth$ma2, 
+                          fill = 'tozeroy',
+                          fillcolor = 'rgba(00,9a,d0,.5)',
+                          line = list(
+                               color = '#009ad0'
+                          )
+               )
+fig <- fig %>% layout(
+    title = "Daily Deaths (7 day rolling average)",
+    xaxis = list(
+      title = "Date",
+      rangeselector = list(
+        buttons = list(
+           list(
+            count = 7,
+            label = "1 wk",
+            step = "day",
+            stepmode = "backward"),
+           list(count = 1,
+            label = "1 mo",
+            step = "month",
+            stepmode = "backward"),
+           list(step = "all"))),
+
+#      rangeslider = list(type = "date",title = "Date")),
+            rangeslider=list(
+            visible=FALSE
+        )),   
+
+   yaxis = list(title = "Deaths"))
+fig<- fig %>% config(displayModeBar = FALSE)
+fig <- fig %>% layout(showlegend = FALSE)
+saveWidget(fig, "growthtime.html", selfcontained = F, libdir = "lib")
+}
+
+htmltools::tags$iframe(
+  src = "growthtime.html", 
+  width="100%",
+  height=400,
+  scrolling = "no", 
+  seamless = "seamless",
+  frameBorder = "0"
+)
+```
+
+<br>
+
+***
+
+ 
+## COVID19 by Country
+
+Hover-over lines to show more detail for that country.
+
+COVID19 deaths vs time for countries with more than 400 deaths,
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.height=4, cache=FALSE}
+
+onsetdaydeathcutoff<-onsetdaydeath %>%
+                     group_by(Country.Region) %>% 
+                     filter(max(number.death)>400) %>%
+                     ungroup()
+
+if(!file.exists("deathspread.html") | as.numeric(Sys.Date()-(as.Date(file.info("deathspread.html")$mtime-6*60*60)))>0) { 
+  
+gg<-ggplot(onsetdaydeathcutoff)+
+  geom_line(aes(day.since.onset.10death,
+                number.death,
+                group=Country.Region,
+#                linetype=continent.y,
+                colour=continent.y,
+                text=sprintf("Country: %s<br>Date: %s<br>Cases: %s <br>Deaths: %s<br>Death/Case: %s percent", Country.Region ,format(Date, "%a %b %d") , number.confirmed, number.death,format(100*number.death/number.confirmed, digits=2))),alpha=.3)+
+    geom_point(data=onsetdaydeathcutoff %>% group_by(Country.Region) %>% filter(Date == max(Date)) %>% ungroup() , 
+             aes(day.since.onset.10death,
+                 number.death,
+                 group=Country.Region,
+                  text=sprintf("Country: %s<br>Date: %s<br>Cases: %s <br>Deaths: %s<br>Death/Case: %s percent", Country.Region ,format(Date, "%a %b %d") , number.confirmed, number.death,format(100*number.death/number.confirmed, digits=2)),
+                  colour=continent.y,
+                  shape=continent.y),alpha=.6)+
+  scale_y_log10(label=comma,"death", limits=c(10,NA))+
+  scale_x_continuous("Days since 10 deaths")+
+  facet_wrap(continent.y~., nrow=1)+
+  theme_minimal()+ scale_color_jcolors("",palette = "pal3")+ theme(legend.position = "top")
+fig<-ggplotly(gg,tooltip="text")
+fig<- fig %>% config(displayModeBar = FALSE)
+fig <- fig %>% layout(showlegend = FALSE)
+saveWidget(fig, "deathspread.html", selfcontained = F, libdir = "lib")
+}
+
+htmltools::tags$iframe(
+  src = "deathspread.html", 
+  width="100%",
+  height=400,
+  scrolling = "no", 
+  seamless = "seamless",
+  frameBorder = "0"
+)
+
+```
+Confirmed COVID19 cases vs time (countries with  more than 2000 cases).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.height=4, cache=FALSE}
+onsetdaycutoff<-onsetday %>%
+                     group_by(Country.Region) %>% 
+                     filter(max(number.confirmed)>2000) %>%
+                     ungroup()
+if(!file.exists("casevstime.html") | as.numeric(Sys.Date()-(as.Date(file.info("casevstime.html")$mtime-6*60*60)))>0) { 
+gg<-ggplot(onsetdaycutoff)+
+  geom_line(aes(day.since.onset,
+                number.confirmed,
+                group=Country.Region,
+#                linetype=continent.y,
+                colour=continent.y,
+                text=sprintf("Country: %s<br>Date: %s<br>Cases: %s <br>Deaths: %s<br>Death/Case: %s percent", Country.Region ,format(Date, "%a %b %d") , number.confirmed, number.death,format(100*number.death/number.confirmed, digits=2))),alpha=.2)+
+  geom_point(data=onsetdaycutoff %>% group_by(Country.Region) %>% filter(Date == max(Date)) %>% ungroup() , 
+             aes(day.since.onset,
+                 number.confirmed,
+                 group=Country.Region,
+                  text=sprintf("Country: %s<br>Date: %s<br>Cases: %s <br>Deaths: %s<br>Death/Case: %s percent", Country.Region ,format(Date, "%a %b %d") , number.confirmed, number.death,format(100*number.death/number.confirmed, digits=2)),
+                  colour=continent.y,
+                  shape=continent.y),alpha=.6)+
+  scale_colour_discrete("")+
+  scale_linetype_discrete("")+    
+  scale_shape("Continent")+
+  scale_y_log10(label=comma,"cases")+
+  scale_x_continuous("Days since \'onset\'")+
+    facet_wrap(continent.y~., nrow=1)+
+
+  theme_minimal()+ scale_color_jcolors(palette = "pal3")
+
+fig<-ggplotly(gg,tooltip="text")
+fig<- fig %>% config(displayModeBar = FALSE)
+fig <- fig %>% layout(showlegend = FALSE)
+saveWidget(fig, "casevstime.html", selfcontained = F, libdir = "lib")
+}
+
+htmltools::tags$iframe(
+  src = "casevstime.html", 
+  width="100%",
+  height=400,
+  scrolling = "no", 
+  seamless = "seamless",
+  frameBorder = "0"
+)
+```
+
+<br>
+
+Cases per million people vs time (countries with  more than 2000 cases).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.height=4, cache=FALSE}
+if(!file.exists("casepermio.html") | as.numeric(Sys.Date()-(as.Date(file.info("casepermio.html")$mtime-6*60*60)))>0) { 
+gg<-ggplot(onsetdaycutoff)+
+  geom_line(aes(day.since.onset,
+                1000000*number.confirmed.per.capita,
+                group=Country.Region,
+#                linetype=continent.y,
+                colour=continent.y,
+
+                text=sprintf("Country: %s<br>Date: %s<br>Cases: %s <br>Deaths: %s<br>Death/Case: %s percent", Country.Region ,format(Date, "%a %b %d") , number.confirmed, number.death,format(100*number.death/number.confirmed, digits=2))),alpha=.2)+
+  geom_point(data=onsetdaycutoff %>% group_by(Country.Region) %>% filter(Date == max(Date)), 
+             aes(day.since.onset,
+                 1000000*number.confirmed.per.capita,
+                  text=sprintf("Country: %s<br>Date: %s<br>Cases: %s <br>Deaths: %s<br>Death/Case: %s percent", Country.Region ,format(Date, "%a %b %d") , number.confirmed, number.death,format(100*number.death/number.confirmed, digits=2)),
+                  colour=continent.y,
+                  shape=continent.y),alpha=.6)+
+  scale_colour_discrete("")+
+  scale_linetype_discrete("")+
+  scale_shape_discrete("")+
+  scale_y_log10(label=comma,"cases per million people")+
+  scale_x_continuous("Days since \'onset\'")+
+  facet_wrap(continent.y~., nrow=1)+
+  theme_minimal()+ scale_color_jcolors(palette = "pal3")
+gg<-gg + guides(colour = guide_legend(override.aes = list(shape = NA)))
+fig<-ggplotly(gg,tooltip="text")
+fig<- fig %>% config(displayModeBar = FALSE)
+fig <- fig %>% layout(showlegend = FALSE)
+#fig <- fig %>% layout(legend = l)
+saveWidget(fig, "casepermio.html", selfcontained = F, libdir = "lib")
+}
+
+htmltools::tags$iframe(
+  src = "casepermio.html", 
+  width="100%",
+  height=400,
+  scrolling = "no", 
+  seamless = "seamless",
+  frameBorder = "0"
+)
+
+```
+
+***
+
+
+# Are Things Getting Better? {#valentina}
+
+## COVID19 Cases
+### Selected Countries 
+
+
+Take all of the countries and look at cases relative to the first day where more than `r casespercapita.origin*1e6` **confirmed** case per million people appears -  we will call this '**onset**' day.
+
+The following is involved, but deserves attention.
+
+For each country, we look at the number of new confirmed cases in the last 7 days[^3]. We do that by taking the cases on any given day, and subtracting how many cases there were 10 days before that. That number of new cases is then expressed as a percentage of the total cases. If 0% of cases are new, then there have been no new cases in the last 7 days. If it is close to 100%, almost all cases are new and we have extreme growth in COVID19 cases.
+
+The percentage of new cases in the last ten days is plotted relative to 'onset' below. Here is how to read that plot. 
+
+In short:
+
+- A line that is **decreasing towards zero** (green line) means that growth is slowing and steps are working. The goal is no new cases in the last 7 days
+- A line that is going **not decreasing towards zero** means continued growth 
+- Lines with a significant 'uptick' are a worry because a previously-falling percentage of cases that are 'new' is now accelerating, which means rapid growth 
+
+The percentage of cases in the last 7 days is a measure of growth. 
+
+The size of the point represets the number of cases. Colour corresponds to continent. 
+
+For `r coi` only.
+
+[^3]: This number of days is an assumed time between infection and positive testing.
+
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=10, cache=FALSE}
+
+# 
+# #Make sure that all countries in the last frame are also in the first frame
+# 
+
+labelplace<-1.05*max(onsetdaydeathcoi$day.since.onset)
+
+notationdf<-data.frame(value="GOAL: ZERO GROWTH",title=paste("Data up to:",max(df$Date)))
+x_limits <- c(labelplace, NA)
+y_limits <- c(0, NA)
+
+
+gg<-ggplot(onsetdaycoi) +
+#  geom_segment(data=doublingbreaks,aes(x = 5, y = new.in.last10/100, xend =1.2*max(onsetdaycoi$day.since.onset), yend = new.in.last10/100),colour="#009AD0",alpha=.4,linetype = "dashed") + 
+#  geom_text(data=doublingbreaks,aes(0.5,new.in.last10/100+.015,  label=paste("double in",doublingbreaks$days,"days")),size=3,colour="#009AD0",hjust=0) + 
+  geom_abline(aes(slope=0, intercept=0),colour="#67d000",size=2, alpha=1,linetype = "dashed") + 
+  geom_text(data=notationdf,aes(05,0.02,label = value), size=4,colour="#67d000", alpha=1,hjust=0)+
+  geom_line(data=onsetdaycoi %>% filter(day.since.onset>=0), 
+                aes(day.since.onset, 
+                new.cases.in.last.7.days/100,
+                text=sprintf("Country: %s<br>Date: %s<br>Cases: %s <br>In last 7 days: %s percent", Country.Region ,format(Date, "%a %b %d") , number.confirmed,format( new.cases.in.last.7.days, digits=2)),
+                colour=continent.y,
+                group=Country.Region,
+                alpha=darkness),
+                show.legend=FALSE)+
+  geom_point(data=onsetdaycoi %>% group_by(Country.Region) %>% filter(Date == max(Date)), 
+             aes(day.since.onset,
+                 new.cases.in.last.7.days/100,
+                 size=.5+number.confirmed/1e9,
+                 text=sprintf("Country: %s<br>Date: %s<br>Cases: %s <br>In last 7 days: %s percent", Country.Region ,format(Date, "%a %b %d") , number.confirmed,format( new.cases.in.last.7.days, digits=2)),
+                 colour=continent.y,
+                show.legend=FALSE), alpha=.6)+
+  geom_text_repel(data=onsetdaycoi %>% group_by(Country.Region) %>% filter(Date == max(Date)) ,
+                  aes(day.since.onset,
+                      new.cases.in.last.7.days/100,label=Country.Region),force=5,nudge_x=0,nudge_y=.005,xlim  = x_limits , ylim=y_limits, segment.color = "grey90") +
+  scale_x_continuous("days since onset",limits=c(0,1.2*max(onsetdaycoi$day.since.onset)),breaks = seq(0, 1.3*max(onsetdaycoi$day.since.onset), by = 14))  +
+  scale_y_continuous("% cases appeared in last 7 days", limits=c(0,.375), breaks=c(0,.125,.25,.375,.5), label=percent)  +
+  scale_size(range = c(.5, 45))+
+  ggtitle(notationdf$title)+
+  theme_ipsum() + 
+  theme(panel.grid.minor=element_blank())
+gg<-gg + theme(legend.position = "top")+ theme(plot.title = element_text(color="lightgrey", size=14))+ scale_color_jcolors(name="size = total cases",palette = "pal3")
+gg+guides(color = guide_legend(order=1),
+         size = FALSE,
+         shape = FALSE)+ theme(legend.background = element_rect(fill="#ffffff",
+                                  size=0.5, linetype="solid", 
+                                  colour ="#efefef"))
+#fig<-ggplotly(gg, tooltip = "text")
+#fig <- fig %>% layout(showlegend = FALSE)
+#fig <- fig %>% layout(legend = list(x = .8, y = .9))
+#fig
+
+```
+
+
+
+
+### Globally {#casesglobal}
+
+Percent of new cases that appeared in the previous 10 days, relative to 'onset day'.
+
+This animated plot has no labels, but you can hover over points, zoom etc. for more information about the country each point represents. Colour and size of the point represent the continent the country is in and the numer of cases respectively.
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.height=10, cache=FALSE}
+days.data<-max(df$days.of.data)
+
+l <- list(
+  font = list(
+    family = "sans-serif",
+    size = 16,
+    color = "#444444"),
+  x = .8, y = .95,
+  bgcolor = "#FFFFFF",
+  bordercolor = "#EEEEEE",
+  borderwidth = 2)
+
+if(!file.exists("globalcases.html") | as.numeric(Sys.Date()-(as.Date(file.info("globalcases.html")$mtime-6*60*60)))>0) {
+# 
+# #Make sure that all countries in the last frame are also in the first frame
+# 
+
+
+
+
+
+fig <- plot_ly(onsetdayani, 
+               x = ~day.since.onset, 
+               y = ~new.cases.in.last.7.days, 
+               type = 'scatter', 
+               mode = 'markers', 
+               text= ~Country.Region ,
+               color= ~continent.y,
+               colors = c(     "#66CD00"       ,"#009ACD"       ,"#FF4500"       ,"#9A32CD"       ,"#F5E400" ),
+               size = ~number.confirmed, 
+               frame = ~Date,
+               hovertemplate = paste('<b>%{text}</b>',
+                                     '<br><b>Cases in last 7 days</b>: %{y:.2f}%<br>',
+                                     '<br>Date:',format(onsetdayani$Date, "%a %b %d"),
+                                     '<br>Cases:',prettyNum(onsetdayani$number.confirmed, big.mark=",", scientific=F),
+                                     '<br>Day:%{x}'),
+#                                     '<br>Days to double:', round(10/(log2(1/(1-(onsetdayani$new.cases.in.last.7.days/100)))),digits=2)),
+               sizes = c(6, 150),
+               marker = list(opacity = 0.5, sizemode = 'diameter'))
+fig <- fig %>% layout(xaxis = list(title = "days after 'onset'",showgrid = FALSE),
+         yaxis = list(title = "% cases appeared in last 7 days",
+                      showgrid = TRUE, 
+                      zeroline=FALSE,
+                      tick0 = 0,
+                      dtick = 25,
+                      ticklen = 1,
+                      range = c(-5, 105)),
+         showlegend = TRUE)
+
+
+fig <- fig %>% animation_opts(
+    400, redraw = FALSE
+  )
+
+
+
+fig <- fig %>% layout(legend = l)
+
+hline <- function(y = 0, color = "#67D000") {
+  list(
+    type = "line", 
+    x0 = 0, 
+    x1 = 1, 
+    xref = "paper",
+    y0 = y, 
+    y1 = y, 
+    line = list(    dash= "dash", color = color, width=6)
+  )
+}
+
+doubleline <- function(y = 0, color = "#009AD0") {
+  list(
+    type = "line",
+    x0 = 0.10, 
+    x1 = 1, 
+    xref = "paper",
+    y0 = y, 
+    y1 = y, 
+    line = list(    dash= "dash", color = color, width=1)
+  )
+}
+
+
+#doublelines<-lapply(doublingbreaks$new.in.last10,doubleline)
+allthelines<-list(hline(0))
+
+
+fig<- fig %>%
+  layout(shapes = allthelines)
+
+# fig<- fig %>% add_annotations(x = 6,
+#                   y = doublingbreaks$new.in.last10+1,
+#                   text = paste("double in",doublingbreaks$days,"days"),
+#                   xref = "x",
+#                   yref = "y",
+#                   showarrow = FALSE,
+#                   ax = 20,
+#                   ay = -40,
+#                   font = list(color = '#009AD0',
+#                               size = 10))
+
+fig<- fig %>% add_annotations(x = 15,
+                  y = 2,
+                  text = "GOAL: ZERO GROWTH",
+                  xref = "x",
+                  yref = "y",
+                  align="left",
+                  showarrow = FALSE,
+                  ax = 20,
+                  ay = -40,
+                  font = list(color = '#67D000',
+                              size = 15))
+
+fig <- fig %>%
+  animation_slider(
+    currentvalue = list(prefix = "Date:", font = list(color="lightgrey"))
+  )
+#fig <- fig %>%
+#  animation_button(
+#    x = .5, xanchor = "center", y = 100, yanchor = "top"
+# )
+fig<- fig %>% config(displayModeBar = FALSE)
+saveWidget(fig, "globalcases.html", selfcontained = F, libdir = "lib")
+}
+
+htmltools::tags$iframe(
+  src = "globalcases.html", 
+  width="100%",
+  height=800,
+  scrolling = "no", 
+  seamless = "seamless",
+  frameBorder = "0"
+)
+
+ # geom_segment(data=doublingbreaks,aes(x = 5, y = new.in.last10, xend =1.2*max(onsetday$day.since.onset), yend = new.in.last10),colour="#009AD0",alpha=.4,linetype = "dashed") + 
+ #  geom_text(data=doublingbreaks,aes(0.5,new.in.last10+1.5,  label=paste("double in",doublingbreaks$days,"days")),size=3,colour="#009AD0",hjust=0) + 
+
+
+```
+
+
+
+## COVID19 Deaths
+### Selected Countries
+
+For `r coi` only.
+
+Look at the percentage of the total number of deaths that occured in the last 7 days for each of the countries above. Plot this relative to the first day where a total of 10 deaths have occured. The size of the point represets the number of deaths. Colour corresponds to continent. 
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=10, cache=FALSE}
+
+# 
+# #Make sure that all countries in the last frame are also in the first frame
+# 
+
+
+labelplace<-1.05*max(onsetdaydeathcoi$day.since.onset.10death)
+
+x_limits <- c(labelplace, NA)
+y_limits <- c(0, NA)
+
+gg<-ggplot(onsetdaydeathcoi) +
+#  geom_segment(data=doublingbreaks,aes(x = 5, y = new.in.last10/100, xend =1.2*max(onsetdaycoi$day.since.onset.10death), yend = new.in.last10/100),colour="#009AD0",alpha=.4,linetype = "dashed") + 
+#  geom_text(data=doublingbreaks,aes(0.5,new.in.last10/100+.015,  label=paste("double in",doublingbreaks$days,"days")),size=3,colour="#009AD0",hjust=0) + 
+  geom_abline(aes(slope=0, intercept=0),colour="#67d000",size=2, alpha=1,linetype = "dashed") + 
+  geom_text(data=notationdf,aes(0.5,.02,label = value), size=4,colour="#67d000", alpha=1,hjust=0)+
+  geom_line(data=onsetdaydeathcoi %>% filter(day.since.onset.10death>=0), 
+                aes(day.since.onset.10death, 
+                new.deaths.in.last.7.days/100,
+                colour=continent.y,
+                group=Country.Region,
+                alpha=darkness),
+                show.legend=FALSE)+
+  geom_point(data=onsetdaydeathcoi %>% group_by(Country.Region) %>% filter(Date == max(Date)), 
+             aes(day.since.onset.10death,
+                 new.deaths.in.last.7.days/100,
+                 size=.5+number.death/200,
+                 colour=continent.y,
+                show.legend=FALSE), alpha=.6)+
+  geom_text_repel(data=onsetdaydeathcoi %>% group_by(Country.Region) %>% filter(Date == max(Date)) ,
+                  aes(day.since.onset.10death,
+                      new.deaths.in.last.7.days/100,label=Country.Region),force=5,nudge_x=0,nudge_y=.005,xlim  = x_limits ,ylim= y_limits,  segment.color = "grey90") +
+  scale_x_continuous("days since 10 deaths",limits=c(0,1.2*max(onsetdaycoi$day.since.onset.10death)),breaks = seq(0, 1.3*max(onsetday$day.since.onset.10death), by = 14))  +
+  scale_y_continuous("% deaths occuring in last 7 days", limits=c(0,.375), breaks=c(0,.125,.25,.375,.5), label=percent)  +
+  scale_size(range = c(.5, 45))+
+  ggtitle(notationdf$title)+
+  theme_ipsum() + 
+  theme(panel.grid.minor=element_blank())
+gg<-gg + theme(legend.position = "top")+ theme(plot.title = element_text(color="lightgrey", size=14))+ scale_color_jcolors(name="size = total deaths",palette = "pal3")
+gg+guides(color = guide_legend(order=1),
+         size = FALSE,
+         shape = FALSE)+ theme(legend.background = element_rect(fill="#ffffff",
+                                  size=0.5, linetype="solid", 
+                                  colour ="#efefef"))
+#fig<-ggplotly(gg, tooltip = "text")
+#fig <- fig %>% layout(showlegend = FALSE)
+#fig <- fig %>% layout(legend = list(x = .8, y = .9))
+#fig
+
+```
+
+### Globally {#deathsglobal}
+
+Percent of new deaths that appeared in the previous 10 days, relative to the day when the total deaths reached 10.
+
+This animated plot has no labels, but you can hover over points, zoom etc. for more information about the country each point represents. Colour and size of the point represent the continent the country is in and the numer of deaths respectively.
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.height=10, cache=FALSE}
+days.data<-max(df$days.of.data)
+
+if(!file.exists("globaldeaths.html") | as.numeric(Sys.Date()-(as.Date(file.info("globaldeaths.html")$mtime-6*60*60)))>0) {
+# 
+# #Make sure that all countries in the last frame are also in the first frame
+# 
+
+
+
+# gg<-ggplot(onsetday) +
+#   geom_segment(data=doublingbreaks,aes(x = 7, y = new.in.last10, xend =max(1.2*onsetday$day.since.onset), yend = new.in.last10),colour="#009AD0",alpha=.4,linetype = "dashed") + 
+#   geom_text(data=doublingbreaks,aes(5,new.in.last10+1.5,  label=paste("double in",doublingbreaks$days,"days")),size=3,colour="#009AD0",hjust=0) + 
+#   geom_abline(aes(slope=0, intercept=0),colour="green",size=2, alpha=.4,linetype = "dashed") + 
+#   geom_text(data=notationdf,aes(18,3,label = value), size=10,colour="green", alpha=.4,hjust=0)+
+#   geom_point(data=onsetday %>% group_by(Country.Region) %>% filter(Date == max(Date)), 
+#              aes(day.since.onset,
+#                  new.cases.in.last.7.days,
+#                  text=sprintf("Country: %s<br>Date: %s<br>Cases: %s <br>In last 7 days: %s percent", Country.Region ,Date , number.confirmed,format( new.cases.in.last.7.days, digits=2)),
+#                  colour=continent.y,frame=day.since.onset,
+#                  size=number.confirmed), alpha=.6)+
+#   scale_colour_discrete("Continent")+
+#   scale_shape("Continent")+
+#   scale_x_continuous("days after 'onset'",limits=c(0,1.2*max(onsetday$day.since.onset)))  +
+#   scale_y_continuous("% cases appeared in last 7 days", limits=c(0,100), breaks=c(0,100))  +
+#   theme_minimal() + theme(text = element_text(size=20)) +
+#   scale_color_jcolors(palette = "pal3")
+# fig<-ggplotly(gg, tooltip = "text")
+# fig <- fig %>% layout(showlegend = FALSE)
+# fig
+
+fig <- plot_ly(onsetdayanideath, 
+               x = ~day.since.onset.10death, 
+               y = ~new.deaths.in.last.7.days, 
+               type = 'scatter', 
+               mode = 'markers', 
+               text= ~Country.Region ,
+               color= ~continent.y,
+               colors = c(     "#66CD00"       ,"#009ACD"       ,"#FF4500"       ,"#9A32CD"       ,"#F5E400" ),
+               size = ~number.death, 
+               frame = ~Date,
+               hovertemplate = paste('<b>%{text}</b>',
+                                     '<br><b>Cases in last 7 days</b>: %{y:.2f}%<br>',
+                                     '<br>Date:',onsetdayanideath$Date,
+                                     '<br>Deaths:',prettyNum(onsetdayanideath$number.death, big.mark=",", scientific=F),
+                                     '<br>Day:%{x}'),
+#                                     '<br>Days to double:', round(10/(log2(1/(1-(onsetdayanideath$new.deaths.in.last.7.days/100)))),digits=2)),
+               sizes = c(6, 150),
+               marker = list(opacity = 0.5, sizemode = 'diameter'))
+fig <- fig %>% layout(xaxis = list(title = "days after 10 deaths",showgrid = FALSE),
+         yaxis = list(title = "% deaths occuring in last 7 days",
+                      showgrid = TRUE, 
+                      zeroline=FALSE,
+                      tick0 = 0,
+                      dtick = 25,
+                      ticklen = 1,
+                      range = c(-5, 105)),
+         showlegend = TRUE)
+
+fig <- fig %>% animation_opts(
+    400, redraw = FALSE
+  )
+
+
+
+fig <- fig %>% layout(legend = l)
+
+
+
+#doublelines<-lapply(doublingbreaks$new.in.last10,doubleline)
+allthelines<- list(hline(0))
+
+fig<- fig %>%
+  layout(shapes = allthelines)
+
+# fig<- fig %>% add_annotations(x = 6,
+#                   y = doublingbreaks$new.in.last10+1,
+#                   text = paste("double in",doublingbreaks$days,"days"),
+#                   xref = "x",
+#                   yref = "y",
+#                   showarrow = FALSE,
+#                   ax = 20,
+#                   ay = -40,
+#                   font = list(color = '#009AD0',
+#                               size = 10))
+
+fig<- fig %>% add_annotations(x = 15,
+                  y = 2,
+                  text = "GOAL: ZERO GROWTH",
+                  xref = "x",
+                  yref = "y",
+                  align="left",
+                  showarrow = FALSE,
+                  ax = 20,
+                  ay = -40,
+                  font = list(color = '#67D000',
+                              size = 15))
+
+fig <- fig %>%
+  animation_slider(
+    currentvalue = list(prefix = "Date:", font = list(color="lightgrey"))
+  )
+#fig <- fig %>%
+#  animation_button(
+#    x = .5, xanchor = "center", y = 100, yanchor = "top"
+#  )
+fig<- fig %>% config(displayModeBar = FALSE)
+saveWidget(fig, "globaldeaths.html", selfcontained = F, libdir = "lib")
+}
+
+htmltools::tags$iframe(
+  src = "globaldeaths.html", 
+  width="100%",
+  height=800,
+  scrolling = "no", 
+  seamless = "seamless",
+  frameBorder = "0"
+)
+```
+
+
+***
+
+## 'Mortality rate' vs Death {#mortality}
+
+This is a plot of deaths per confirmed case (percent) against total deaths for the 10 countries with most deaths.
+
+If confirmed case numbers are representative of the actual case number (even as a fixed proportion of actual cases), and medical resources are not overwhelmed, you would expect these lines to be flat. They aren't. 
+
+To make the plot more legible for specific countries, click  <i class="fas fa-mouse-pointer" style="color:#009AD0"> </i> on individual countries in the plot legend to toggle their selection.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.width=10,fig.height=6,cache=FALSE }
+
+topdeath<-df %>%
+    group_by(Country.Region) %>%
+    summarise(lasttotaldeath=max(number.death)) %>%
+    arrange(-lasttotaldeath)
+
+if(!file.exists("mortality.html") | as.numeric(Sys.Date()-(as.Date(file.info("mortality.html")$mtime-6*60*60)))>0) {
+  
+gg<-ggplot(subset(df,Country.Region %in% head(topdeath$Country.Region,10)))+
+            geom_point(aes(number.death, 
+                           percent.mortality/100,
+                           group=Country.Region, 
+                           colour=Country.Region, 
+                           text=sprintf("Country: %s <br>Deaths per confirmed case: %s percent <br>Deaths:%s <br>Date: %s",Country.Region,round(100*number.death/number.confirmed, digits=2),number.death,format(Date, "%a %b %d"))), show.legend = TRUE, alpha=.8, size=1)+
+            geom_line(aes(number.death, 
+                            percent.mortality/100, 
+                            group=Country.Region, 
+                            colour=Country.Region, 
+                            text=sprintf("Country: %s <br>Deaths per confirmed case: %s percent <br>Deaths:%s <br>Date: %s",Country.Region,round(100*number.death/number.confirmed, digits=2),number.death,format(Date, "%a %b %d"))), show.legend = TRUE, alpha=0.3)+
+            scale_y_continuous(label=percent,"Death per confirmed case (percent)", limits=c(0,.18))+
+            scale_x_continuous(label=comma,"COVID-19 Death")+
+            theme_light()+ scale_color_jcolors("",palette = "pal8")
+
+fig<-ggplotly(gg,tooltip="text")
+fig<- fig %>% config(displayModeBar = FALSE)
+saveWidget(fig, "mortality.html", selfcontained = F, libdir = "lib")
+}
+htmltools::tags$iframe(
+  src = "mortality.html", 
+  width="100%",
+  height=800,
+  scrolling = "no", 
+  seamless = "seamless",
+  frameBorder = "0"
+)
+```
+
+This is not the true mortality of COVID-19 because it is not **actual** deaths divided by **actual** cases. It is **confirmed** deaths divided by **confirmed** cases. This plot does not imply that the virus is more deadly in some countries. It does not imply that the disease becomes more deadly as the numbers of deaths increase. Under-detection of COVID-19 cases will mean that deaths per confirmed case will over-estimate the COVID-19 mortality rate.
+
+<br>
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=7, cache=FALSE}
+
+## Days to 100,000 deaths
+
+# This is **not** a model or a forecast, just some simple arithmetic to answer a question: If a country's current rate of growth in deaths remained at the same level as it was over the last 7 days, how many days would it take until that country has 100,000 deaths? 
+# 
+# Regular expressions can be used when searching. For example, to see the United Kingdom and Norway, enter **(United Kingdom)|Norway** into the search box.
+# 
+# 
+#  
+# datatable(daysto100K,
+#           colnames = c("<i class=\"fas fa-globe-americas \"></i>",
+#                        "Total Deaths",
+#                        "Deaths x2 every (days)",
+#                        "100,000 deaths in (days)"),
+#           options = list( order = list(list(1,'desc')),
+#                           search = list(regex = TRUE, caseInsensitive = TRUE),
+#                           columnDefs = list(list(className = 'dt-right', targets = 1:3) 
+#                                             )
+#                         ),
+#           rownames = FALSE, 
+#           escape=F,
+#           autoHideNavigation =T)
+# 
+# 
+
+```
+
+
+***
+
+## Propagation of death due to COVID19  {#propagation}
+ 
+Scatterplot of fatal confirmed cases (%) vs death for all countries with more than 100 deaths. Colour and shape of the points indicate the continent. Size of the points represents the country's population. 
+
+Hover-over points for more information.
+```{r echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.height=7}
+days.data<-max(df$days.of.data)
+# 
+# #Make sure that all countries in the last frame are also in the first frame
+# 
+
+
+
+l <- list(
+  font = list(
+    family = "sans-serif",
+    size = 12,
+    color = "#444444"),
+  x = .8, y = .9,
+  bgcolor = "#FFFFFF",
+  bordercolor = "#EFEFEF",
+  borderwidth = 2)
+
+if(!file.exists("propagate.html") | as.numeric(Sys.Date()-(as.Date(file.info("propagate.html")$mtime-6*60*60)))>0) {
+
+gg <- ggplot(df.scatter) +
+#  geom_abline(aes(slope=1, intercept=0),colour="lightgrey",alpha=.8,linetype = "dashed") + 
+#  geom_abline(aes(slope=1, intercept=1),colour="lightgrey",alpha=.8,linetype = "dashed") + 
+#  geom_abline(aes(slope=1, intercept=2),colour="lightgrey",alpha=.8,linetype = "dashed") + 
+#  geom_abline(aes(slope=1, intercept=3),colour="lightgrey",alpha=.8,linetype = "dashed") + 
+  geom_point(aes(                percent.mortality,
+                                 number.death,
+#                 number.confirmed/population,
+                 color = continent,
+                 size = population, 
+                 shape = continent,
+                 frame = Date,
+                 text=sprintf("Country: %s<br>Date: %s<br>Cases: %s <br>Deaths: %s<br>Death/Case: %s percent", Country.Region ,Date , prettyNum(number.confirmed, big.mark=",", scientific=F), prettyNum(number.death, big.mark=",", scientific=F),format(100*number.death/number.confirmed, digits=2)),
+                 ids = Country.Region),
+             alpha=.7) +
+  scale_y_continuous(label=comma, "Deaths")  +
+  scale_x_continuous("Fatal cases (%)", limits=c(0,20))  +
+  scale_size("")+
+  scale_shape("")+  
+  theme_ipsum()+scale_color_jcolors("",palette = "pal3")
+#gg<-gg + annotate("text", x = .5e-8, y = .7e-5,colour="grey",label = "0.1%")
+#gg<-gg + annotate("text", x = .5e-8, y = .7e-6,colour="grey", label = "1%")
+#gg<-gg + annotate("text", x = .5e-8, y = .7e-7,colour="grey", label = "10%")
+#gg<-gg + annotate("text", x = .5e-8, y = .7e-8,colour="grey", label = "100%")
+
+fig<- ggplotly(gg,tooltip="text")
+fig <- fig %>% layout(legend = l)
+fig<- fig %>% config(displayModeBar = FALSE)
+fig <- fig %>% animation_opts(
+    300, redraw = FALSE
+  )
+
+
+fig <- fig %>%
+  animation_slider(
+    currentvalue = list(prefix = "Date: ", font = list(color="red"))
+  )
+
+saveWidget(fig, "propagate.html", selfcontained = F, libdir = "lib")
+}
+htmltools::tags$iframe(
+  src = "propagate.html", 
+  width="100%",
+  height=800,
+  scrolling = "no", 
+  seamless = "seamless",
+  frameBorder = "0"
+)
+
+```
+
+<br>
+
+***
+
+## Deaths per Case 
+### By Continent
+
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.height=3, cache=FALSE}
+
+gg<-ggplot(continental)+
+    geom_line(aes(Date,number.death/number.confirmed, 
+                  colour=continent,    
+                  text=Date),
+              alpha=.7)+
+    scale_y_continuous("Deaths per case (percent)", label=percent)+
+    scale_color_discrete()+
+#    facet_wrap(~continent, ncol=3)
+    theme_ipsum()+ scale_color_jcolors(palette = "pal3")
+
+gg<-gg + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+gg
+
+```
+
+<br>
+
+***
+
+# Testing
+
+Plot of tests per million (log scale), against percentage of fatal cases for all countries where more than 1,w000 coronavirus deaths have occured. Size corresponds to total number of deaths. (Worldometers data)
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.width=10,fig.height=12 , cache=FALSE}
+
+worldometer$TotalTests<-as.integer(gsub(",","",worldometer$TotalTests))
+worldometer$TotalDeaths<-as.integer(gsub(",","",worldometer$TotalDeaths))
+worldometer$TotalCases<-as.integer(gsub(",","",worldometer$TotalCases))
+worldometer$Tests..1M.pop.<-as.integer(gsub(",","",worldometer$Tests..1M.pop.))
+worldometer<-worldometer %>%
+             filter(Continent!="All",TotalDeaths>1000,!(is.na(Tests..1M.pop.)),!(is.na(TotalDeaths/TotalCases)) )
+gg<-ggplot(worldometer) + 
+            geom_point(aes(TotalDeaths/TotalCases,Tests..1M.pop., colour=Continent, size=TotalDeaths), show.legend = FALSE, alpha=.4)+
+            geom_text_repel(aes(TotalDeaths/TotalCases, Tests..1M.pop.,label=Country.Other), force=10, segment.color = "lightgrey") +
+            scale_y_log10("Tests per million people",labels = comma)+
+            scale_x_continuous("% of cases that are fatal",labels = percent)+
+#facet_grid(Continent~.,scales="free_y")+
+            scale_size(range = c(.5, 45))+
+            theme_ipsum()+ scale_color_jcolors(palette = "pal3")
+  
+
+gg
+
+
+```
+<br>
+
+
+# Google Global Mobilty {#ggm}
+<span style="color:#a0a0a0">Most recent movement data up to: `r max(subset(dfgoogle,!is.na(residential_percent_change_from_baseline))$Date)` </span>
+
+Google are temporarily [publishing summary data](https://www.blog.google/technology/health/covid-19-community-mobility-reports) from all of their Android devices that are collecting movement information. It is merged with the Johns Hopkins COVID19 data so that we can look at changes in movement patterns and the number of COVID19 deaths in various countries. COVID19 data is only shown for the dates where we also have movement data.
+
+## Speed to 'lock down'
+
+Assume that being 'locked-down' involves a significant increase in time spent in 'Residential'. This is one metric that Google has summarised in their report. Changes for each day are compared to a baseline value for that day of the week. On day 0, the day after a country reaches 10 reported COVID 19 deaths, the change in Residential gives a crude indication of how 'locked down' people are. This is then plotted against total deaths (for the dates available in the google report) to see whether there is any relationship between early lockdown and total deaths. 
+
+- Labelled points (with the country's iso2 code) for countries with >1,000 deaths
+
+- Unlabelled: Countries with <=1,000 deaths
+
+
+## Change in 'Residential' on the day after 10 deaths vs Total deaths
+
+```{r echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=6, cache=FALSE}
+
+
+gg<-ggplot(data=scatter %>% filter(totaldeaths>1000))+
+  geom_point(data=scatter %>% filter(totaldeaths>0), 
+             aes(
+                 at10deaths/100, 
+                 totaldeaths, 
+                 group=iso2), 
+             colour="#009ad0", 
+             alpha=.2)+  
+    geom_point(data=scatter %>% filter(totaldeaths>1000), 
+             aes(
+                 at10deaths/100, 
+                 totaldeaths, 
+                 group=iso2), 
+             colour="#009ad0", 
+             alpha=.8)+  
+  geom_text_repel(aes(
+                      at10deaths/100,
+                      totaldeaths, 
+                      label=iso2),
+                  force=5,  
+                  segment.color = "grey90") +
+  theme_ipsum()+
+  scale_fill_jcolors("Country",palette = "pal3")+
+   scale_x_continuous("Google % from baseline Residential at day 0", label=percent)+
+  scale_y_continuous("Total Deaths", label=comma)
+gg
+
+```
+
+## Distribution of change from baseline @ day 0
+
+```{r echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=3, cache=FALSE}
+gg<-ggplot(scatter)+
+  geom_histogram(aes(at10deaths/100), binwidth=.05, alpha=.3,colour="#009ad0") +
+  scale_x_continuous("Google % from baseline Residential at day 0", label=percent)+
+  scale_y_continuous("count", breaks=c(0,5,10,15), labels=c("0","5","10","    15"))+
+  theme_ipsum()
+gg
+```
+
+## tl;dr
+
+A large change from baseline in time spent in 'Residential' on the day after 10 COVID19 deaths is an indicator of an early lockdown. 
+
+- All countries with more than **5,000** deaths were less than **+`r max((scatter %>% filter(totaldeaths>5000))$at10deaths, na.rm=TRUE)`%** from their baseline 'At Residential' on the day after their 10th COVID19 death.
+
+- All countries with more than **20,000** deaths were less than **+`r max((scatter %>% filter(totaldeaths>20000))$at10deaths, na.rm=TRUE)`%** from their baseline 'At Residential' on the day after their 10th COVID19 death.
+
+## Italy and United Kingdom: Strict vs Lighter lockdown (aka parklife) {#ituk}
+
+The following shows the Android data summary for time spent in 'Residential' and 'Park' followed by the the daily death rate (7 day rolling average) for [Italy](https://llvll.ch/country/Italy.html) and [United Kingdom](https://llvll.ch/country/United%20Kingdom.html).
+
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=4, cache=FALSE}
+
+gg<-ggplot(subset(dfgoogle,country_region %in% c("United Kingdom","Italy")))+
+   geom_line(aes(day.since.onset.10death, residential_percent_change_from_baseline, group=iso2, colour=Country.Region),size=1)+
+   theme_ipsum()+
+   scale_color_jcolors("Country",palette = "pal3")+
+   scale_x_continuous("Days since first 10 COVID19 deaths", breaks=seq(0,1070,7))+
+   ggtitle("Android: Time spent in 'Residential' (% from baseline)")
+gg
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=4, cache=FALSE}
+
+gg<-ggplot(subset(dfgoogle,country_region %in% c("United Kingdom","Italy")))+
+   geom_line(aes(day.since.onset.10death, parks_percent_change_from_baseline, group=iso2, colour=Country.Region),size=1)+
+   theme_ipsum()+
+   scale_color_jcolors("Country",palette = "pal3")+
+   scale_x_continuous("Days since first 10 COVID19 deaths", breaks=seq(0,1070,7))+
+   ggtitle("Android: Time spent in 'Parks' (% from baseline)")
+gg
+```
+
+
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=4, cache=FALSE}
+gg<-ggplot(subset(dfgoogle,country_region %in% c("United Kingdom", "Italy")))+
+  geom_bar(aes(day.since.onset.10death, number.deaths.today, group=iso2, fill=Country.Region), stat="identity", position = "dodge", alpha=.8)+
+  theme_ipsum()+
+  scale_fill_jcolors("Country",palette = "pal3")+
+   scale_x_continuous("Days since first 10 COVID19 deaths", breaks=seq(0,170,7))+
+  scale_y_continuous("Number Daily Deaths (7 day average)")+
+   ggtitle("COVID19 Daily Deaths")
+gg
+```
+
+
+***
+
+##  Austria and Switzerland {#atch}
+
+Compared due to similarities: Mainland Europe, high GDP, adjacent to Italy, population ~ 9,000,000, testing ~ 40,000 per million.
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=4, cache=FALSE}
+
+gg<-ggplot(subset(dfgoogle, country_region %in% c("Austria","Switzerland")))+
+   geom_line(aes(day.since.onset.10death, residential_percent_change_from_baseline, group=iso2, colour=Country.Region),size=1)+
+   theme_ipsum()+
+   scale_color_jcolors("Country",palette = "pal3")+
+   scale_x_continuous("Days since first 10 COVID19 deaths", breaks=seq(0,1070,7))+
+   ggtitle("Android: Time spent in 'Residential' (% from baseline)")
+gg
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=4, cache=FALSE}
+
+gg<-ggplot(subset(dfgoogle,country_region %in% c("Austria", "Switzerland")))+
+   geom_line(aes(day.since.onset.10death, retail_and_recreation_percent_change_from_baseline, group=iso2, colour=Country.Region),size=1)+
+   theme_ipsum()+
+   scale_color_jcolors("Country",palette = "pal3")+
+   scale_x_continuous("Days since first 10 COVID19 deaths", breaks=seq(0,1070,7))+
+   scale_y_continuous(limits=c(-90,0))+
+   ggtitle("Android: Time spent in 'Retail and Recreation' (% from baseline)")
+gg
+```
+
+
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=4, cache=FALSE}
+gg<-ggplot(subset(dfgoogle,country_region %in% c("Austria","Switzerland")))+
+  geom_bar(aes(day.since.onset.10death, number.deaths.today, group=iso2, fill=Country.Region), stat="identity", position = "dodge", alpha=.8)+
+  theme_ipsum()+
+  scale_fill_jcolors("Country",palette = "pal3")+
+   scale_x_continuous("Days since first 10 COVID19 deaths", breaks=seq(0,1070,7))+
+  scale_y_continuous("Number Daily Deaths (7 day average)")+
+   ggtitle("COVID19 Daily Deaths")
+gg
+
+```
+
+
+# Select a Country
+
+
+Data for all countries with COVID19 cases are also accessible using the search box above the table. Searches can be performed via [regex](https://regex101.com/). This means that if you want to see the numbers for Italy, France and Germany only: type **Italy|Germany|France** into the search box.
+
+Click <i class="fas fa-mouse-pointer" style="color:#009AD0"></i> on a country name in the table below to go to that country's summary page.
+
+<br><br>
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.height=8 }
+
+datatable(df.table ,
+          colnames = c("<i class=\"fas fa-globe-americas \"></i>",
+                       "<i class=\"fas fa-procedures \" title=\"Total confirmed COVID19 cases\" > </i> Cases",
+                       "<i class=\"fas fa-book-dead \" title=\"Total COVID19 fatalities\"> </i> Deaths",
+                       "<i class=\"fas fa-book-dead \" title=\"Percent of identified COVID19 cases that prove fatal\">&nbsp</i><i class=\"fas fa-percent\"></i>",
+                       "<i class=\"fas fa-vial\" title=\"Tests\"></i> Tests",
+                       "<i class=\"fas fa-vial\" title=\"Tests\"></i> per 1M <i class=\"fas fa-male\" title=\"people in country\">",
+                       "<i class=\"fas fa-male\" title=\"people in country\">  </i> Population"),
+          options = list( order = list(list(1,'desc')),
+                          search = list(regex = TRUE, caseInsensitive = TRUE),
+                          columnDefs = list(list(className = 'dt-right', targets = 1:6)
+                                            
+      )
+                        ),
+          rownames = FALSE, 
+          escape=F,
+          autoHideNavigation =T)
+
+
+
+```
+
+***
+
+
+
+<br>
+
+
+## <i class="fas fa-book"  style="color:#888888"></i> Other Resources:
+- WHO [rolling updates](https://www.who.int/emergencies/diseases/novel-coronavirus-2019/events-as-they-happen)
+- [NEJM COVID19](https://www.nejm.org/coronavirus?query=RP) article repository
+- [lesswrong.com](https://www.lesswrong.com/coronavirus-link-database) link database
+
+## <i class="fas fa-database"  style="color:#888888"></i> Data Sources: 
+- COVID19 Historical: [Johns Hopkins CSSE](https://github.com/CSSEGISandData/COVID-19/blob/master/README.md)
+- COVID19 Live: [Worldometers](https://www.worldometers.info/coronavirus/)
+- Population: [World Bank](`r url`)
+- Geography: [Kaggle](https://www.kaggle.com/statchaitya/country-to-continent)
+- Testing: [ourworldindata](https://ourworldindata.org/coronavirus-testing-source-data) & [Worldometers](https://www.worldometers.info/coronavirus/)
+- Movement: [Google](https://www.google.com/covid19/mobility/)
+
+## <i class="far fa-file-code"  style="color:#888888"></i>  Source Code:
+- [Github](https://github.com/llvllch/Rcovid)
+
+##   <i class="far fa-envelope"  style="color:#888888"></i> Contact:
+- For suggestions, corrections and general friendliness, send a <a href="&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#109;&#97;&#114;&#116;&#64;&#108;&#108;&#118;&#108;&#108;&#46;&#99;&#104;">&#109;&#101;&#115;&#115;&#97;&#103;&#101;</a>.
+
+***
+
+Country [list](countrylist.html)

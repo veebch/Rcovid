@@ -1,0 +1,10 @@
+---
+title: "countrylist"
+output: html_document
+---
+
+
+
+## Country list
+
+`r df.table$Country.Other`
