@@ -82,7 +82,8 @@ close(CON)
 <br>
 <br>
 <div class = "row no-gutters">
-<div class = "col-sm-8"> 
+<div class = "col-sm-8">
+
 </div>
 <div class = "col-sm-4" style="text-align: right">
 <a href="/">
@@ -145,7 +146,7 @@ close(CON)
 
 ***
 [^1]: Number in square brackets: reported since midnight today (GMT+0)
-[^2]: For multiple reasons, the number of deaths divided by the number of cases is not the mortality rate of COVID19. It is the percentage of individuals identified to have COVID19 who are now dead.. 
+[^2]: For multiple reasons, the number of deaths divided by the number of cases is not the mortality rate of COVID19. It is the percentage of individuals identified to have COVID19 who are now deceased. 
 
 # Number of deaths per day {#gdpd}
 
@@ -157,7 +158,7 @@ library(zoo)
 growth<-growth %>% arrange(Date) %>%
        mutate(ma2=rollapply(newdeath,7,mean,align='right',fill=NA))
 
-if(!file.exists("growthtime.html") | as.numeric(Sys.Date()-(as.Date(file.info("growthtime.html")$mtime-6*60*60)))>0) { 
+
 
 fig <- plot_ly(hoverinfo = "text", text = paste(format(growth$Date, "%a %b %d"),"<br>Deaths:",prettyNum(growth$newdeath, big.mark=",", scientific=F),sep=""),type = 'scatter', mode = 'lines')
 fig <- fig %>% add_trace( x = ~growth$Date,
@@ -193,17 +194,8 @@ fig <- fig %>% layout(
    yaxis = list(title = "Daily Deaths (7 day rolling average)"))
 fig<- fig %>% config(displayModeBar = FALSE)
 fig <- fig %>% layout(showlegend = FALSE)
-saveWidget(fig, "growthtime.html", selfcontained = F, libdir = "lib")
-}
+fig
 
-htmltools::tags$iframe(
-  src = "growthtime.html", 
-  width="100%",
-  height=400,
-  scrolling = "no", 
-  seamless = "seamless",
-  frameBorder = "0"
-)
 ```
 
 
@@ -363,11 +355,12 @@ datatable(df.table ,
 ```
 
 ***
-
+<!-- 
 <center>
 <button class="button"  onclick="location.href='http://llvll.ch/indexfull.html'" ><span> <i class="fas fa-globe-americas"> </i> <i class="fas fa-mouse-pointer"></i>  click for analysis</span></button>
 </center>
 <br>
+-->
 
 
 
