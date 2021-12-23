@@ -367,7 +367,7 @@ onsetdaycopy<-onsetday           # THIS IS A HACK TO PREVENT A SHIFT TO TIME SIN
 onsetday<-onsetday %>%
   group_by(Country.Region) %>% 
   arrange(Date) %>%
-  mutate("new.cases.in.last.7.days"=ifelse(is.na(lag(number.confirmed, 7)),100,100*(number.confirmed-lag(number.confirmed, 7))/number.confirmed),"darkness"=max(number.confirmed, na.rm=T)/maxcases) %>% 
+  mutate("new.cases.in.last.7.days"=ifelse(is.na(lag(number.confirmed, 70)),100,100*(number.confirmed-lag(number.confirmed, 7))/(number.confirmed-lag(number.confirmed, 70))),"darkness"=max(number.confirmed, na.rm=T)/maxcases) %>% 
   ungroup()
 
 onsetday<-onsetday %>% 
@@ -573,7 +573,17 @@ scatter<-dfgoogle %>%
 
 
 #Produce detailed page
-render("./indexfull.Rmd",output_file = 'indexfull.html')
+#render("./indexfull.Rmd",output_file = 'indexfull.html')
 
+aweekago<-as.numeric(lubridate::seconds(Sys.time())-60*60*24*7)
+lasttick<-fromJSON("https://llvll.ch/fallbackurlhistoric.json")
+dfpast<-as.data.frame(lasttick)
+
+
+library(curl)
+rightnow<-round(1000*as.numeric(seconds(Sys.time())))
+weekgone<-rightnow-7*24*60*60*1000
+url<-paste("https://api.coincap.io/v2/assets/bitcoin/history?interval=h1&start=",weekgone,"&end=",rightnow,sep="")
+curl_download(url,"fallbackurlhistoric.json")
 
 
