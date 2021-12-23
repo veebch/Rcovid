@@ -1,3 +1,3 @@
-# Rcovid
+# A Basic Scraper for COVID19 Stats by country
 
-The Rmd code that generates llvll.ch covid19 plots. 
+The .Rmd file that generates the covid19 plots hosted at llvll.ch. 
