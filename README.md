@@ -2,7 +2,7 @@
 
 # A Scraper for COVID19, as reported by Country
 
-The .Rmd file that generates the COVID19 plots hosted at [llvll.ch](https://llvll.ch).
+The R scripts that generates the COVID19 plots hosted at [llvll.ch](https://llvll.ch).
 
 ![screenshot](screenshot.png)
 
