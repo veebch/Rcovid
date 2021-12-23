@@ -1,3 +1,7 @@
-# A Scraper for COVID19 Stats by Country
+# A Scraper for COVID19, as reported by Country
 
-The .Rmd file that generates the covid19 plots hosted at llvll.ch. 
+The .Rmd file that generates the COVID19 plots hosted at llvll.ch.
+
+# Source
+
+Uses the collated data from Worldometers and Johns Hopkins 
