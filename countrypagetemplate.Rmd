@@ -1,0 +1,286 @@
+---
+pagetitle: "COVID-19 Live: Country-Specific"
+output: 
+  html_document:
+    self_contained: false    
+    includes:
+      in_header: ./header.html
+
+---
+
+
+```{r a, echo=FALSE}
+#Report Analysis
+
+total.deaths<- as.numeric(gsub(",","",subgroup$TotalDeaths))
+total.cases<-  as.numeric(gsub(",","",subgroup$TotalCases))
+total.deaths[is.na(total.deaths)]<-0
+total.cases[is.na(total.cases)]<-0
+subgroup$NewCases<-ifelse(is.na(subgroup$NewCases),0,subgroup$NewCases)
+subgroup$NewDeaths<-ifelse(is.na(subgroup$NewDeaths),0,subgroup$NewDeaths)
+sparkstartdate<-mindate
+do_it=FALSE
+do_it<-ifelse((total.deaths>10) & (id %in% unique(onsetday$Country.Region)),TRUE,FALSE)
+thefile1<-paste0("./country/",id,"_files/figure-html/borwdeathsba-1.png")
+thefile2<-paste0("./country/",id,"_files/figure-html/deathspread-1.png")
+if(id!="China"){
+  onsetdaydeathplot<-onsetdaydeath[onsetdaydeath$Country.Region!="China",]
+} else {
+  onsetdaydeathplot<-onsetdaydeath
+}
+doublingbreaks$new.in.last10<-100*(1-2^(-10/doublingbreaks$days))
+notationdf<-data.frame(value="NO CASES FOR 7 DAYS",title=paste("Data up to:",max(df$Date)))
+```
+<br>
+<div class = "row no-gutters">
+<div class = "col-sm-8">
+
+</div>
+<div class = "col-sm-4" style="text-align: right">
+<a href="/">
+<img src="https://llvll.ch/images/llvlllogo.svg" style="width:120px; float:right;">
+</a>
+</div>
+</div>
+
+
+***
+
+# `r subgroup$Country.Other` COVID19
+<span style="color:#a0a0a0">Updated: `r format(Sys.time(), format='%H:%M, %B %d, %Y (%Z)')`</span>
+
+***
+
+
+
+## Cases: <span style="color:#009AD0">`r ifelse((subgroup$TotalCases==""),"0",subgroup$TotalCases)`</span>
+<span style="color:#a0a0a0">&nbsp;[+`r prettyNum(subgroup$NewCases, big.mark=",", scientific=F)` cases today]</span> [^1]
+
+## Recovered: <span style="color:#67d000">`r ifelse((subgroup$TotalRecovered==""),"N/A",subgroup$TotalRecovered)`</span>
+
+## Deaths: <span style="color:red">`r ifelse((total.deaths==0),"0",subgroup$TotalDeaths)`</span>
+<span style="color:#a0a0a0">&nbsp;[+`r prettyNum(subgroup$NewDeaths, big.mark=",", scientific=F)` deaths today]</span>
+
+## Tests: <span style="color:#a0a0a0">`r ifelse((subgroup$Tests..1M.pop==""),"N/A",prettyNum(subgroup$Tests..1M.pop, big.mark=",", scientific=F))` per million <i class="fas fa-male" title="people in the population" style="color:#a0a0a0"></i> </span>
+
+
+[^1]: Number in square brackets: reported since midnight today (GMT+0)
+
+<br>
+
+1 in `r ifelse(total.deaths>0,round(1/(total.deaths/total.cases)),"<i class=\"fas fa-infinity\"></i>")` cases are fatal[^2]: `r ifelse(total.deaths>0,toperson(round(1/(total.deaths/total.cases)),"#009AD0"),"<i class=\"fas fa-shield-virus fa-2x\" style=\"color:#DAA520\"></i>")` 
+
+
+[^2]: For multiple reasons, the number of deaths divided by the number of cases is not the mortality rate of COVID19. It is the percentage of individuals identified to have COVID19 who are now dead. 
+
+<br>
+<span style="color:#009AD0">`r ifelse(growthloop$newconfirmed[growthloop$Date==maxdate]>0,prettyNum(growthloop$newconfirmed[growthloop$Date==maxdate], big.mark=",", scientific=F),"0")`</span> cases yesterday <br>Last 28 days: `r sparkline(tail(growthloop$newconfirmed,28),type="bar",barColor="#009AD0", highlightColor= 'blue',width = 150, tooltipFormatter = htmlwidgets::JS(
+    sprintf(
+      "function(sparkline, options, field){
+  debugger;
+  
+  return %s[field[0].offset] + '<br/>' + 'Cases:' + field[0].value.toLocaleString();
+}",
+      jsonlite::toJSON(
+        format(
+          format(seq.Date(min(tail(growthloop$Date,28)),by="day",length.out =length(tail(growthloop$Date,28))), "%a %b %d")
+        )
+      )
+    )
+  )
+)
+`
+<br><br>
+<span style="color:red">`r ifelse(growthloop$newdeath[growthloop$Date==maxdate]>0,prettyNum(growthloop$newdeath[growthloop$Date==maxdate], big.mark=",", scientific=F),"0")`</span> deaths yesterday <br>Last 28 days: `r sparkline(tail(growthloop$newdeath,28),type="bar",barColor="red", highlightColor= 'blue',width = 150, tooltipFormatter = htmlwidgets::JS(
+    sprintf(
+      "function(sparkline, options, field){
+  debugger;
+  return %s[field[0].offset] + '<br/>' + 'Deaths:' + field[0].value.toLocaleString();
+}",
+      jsonlite::toJSON(
+        format(
+          format(seq.Date(min(tail(growthloop$Date,28)),by="day",length.out =length(tail(growthloop$Date,28))), "%a %b %d")
+        )
+      )
+    )
+  )
+)
+`
+<br><br><br>
+
+***
+
+## `r ifelse(do_it==TRUE,"COVID19 Cases and Deaths","")`
+
+`r ifelse(do_it==TRUE,"The graph below shows the percentage of the country's total **cases** from the last 70 days that occured in the previous 7 days, against time (days since 10 deaths). This is a simple measure of spread velocity. The size of the circle represents the total number of cases registered. Beneath the spread graph is the total number of **deaths** over the last 7 days. The plots use Johns Hopkins CSSE data and refresh daily. <br><br> Labelled points in the top frame highlight countries that have high growth in number of cases, with more than 5 weeks since 10 deaths occured.","")`
+
+```{r borwdeathsba, eval=do_it,echo=FALSE, message=FALSE, warning=FALSE , out.width="100%",fig.width=10, fig.height=7, cache=FALSE}
+if(TRUE){
+#if(!file.exists(thefile1) | as.numeric(Sys.Date()-(as.Date(file.info(thefile1)$mtime-9*60*60)))>0) {
+# 
+# #Make sure that all countries in the last frame are also in the first frame
+# 
+gg<-ggplot(onsetday) +
+#  geom_segment(data=doublingbreaks,aes(x = 5, y = new.in.last10, xend =1.2*max(onsetdaydeathplot$day.since.onset.10death), yend = new.in.last10),colour="#009AD0",alpha=.4,linetype = "dashed") + 
+#  geom_text(data=doublingbreaks,aes(0.5,new.in.last10+1.5,  label=paste("double in",doublingbreaks$days,"days")),size=3,colour="#009AD0",hjust=0) + 
+geom_abline(aes(slope=0, intercept=0),colour="#67D000",size=2, alpha=1,linetype = "dashed") + 
+geom_text(data=notationdf,aes(0.5,3,label = value), size=4,colour="#67D000", alpha=1,hjust=0)+
+geom_line(data=onsetday %>% filter(day.since.onset>=70,Country.Region==id), 
+                aes(day.since.onset.10death, 
+                new.cases.in.last.7.days,
+                colour=continent.y,
+                group=Country.Region), alpha=.8, size=1,
+                show.legend=FALSE)+
+geom_point(data=onsetday %>% group_by(Country.Region) %>% filter(Date == max(Date)), 
+             aes(day.since.onset.10death,
+                 new.cases.in.last.7.days,
+                 size=.5+number.death/200,
+                 colour=continent.y,
+                show.legend=FALSE),                 
+                alpha=.1)+
+  
+geom_point(data=onsetday %>% group_by(Country.Region) %>% filter(Date == max(Date),Country.Region==id), 
+             aes(day.since.onset.10death,
+                 new.cases.in.last.7.days,
+                 size=.5+number.death/200,
+                 colour=continent.y,
+                show.legend=FALSE),                 
+                alpha=.6)+
+geom_text_repel(data=onsetday %>% group_by(Country.Region) %>% filter(Date == max(Date), day.since.onset.10death>35,new.cases.in.last.7.days>15,Country.Region!=id),
+                    aes(day.since.onset.10death,
+                        new.cases.in.last.7.days,
+                        label=Country.Region),force=10,nudge_x=3,  alpha=.3, segment.color = "grey90") +
+geom_text_repel(data=onsetday %>% group_by(Country.Region) %>% filter(Date == max(Date),Country.Region==id) ,
+                  aes(day.since.onset.10death,
+                      new.cases.in.last.7.days,
+                      label=Country.Region),force=10,nudge_x=10,  segment.color = "grey90") +
+  scale_x_continuous("days since 10 deaths",limits=c(0,1.2*max(onsetdaydeathplot$day.since.onset.10death)),breaks = seq(84, 1.2*max(onsetdaydeathplot$day.since.onset.10death), by = 28))  +
+scale_y_continuous("% of total cases from last 70 days occuring in last 7 days", limits=c(0,100), breaks=c(0,10,50,90,100),labels=c("  0%"," 10%","   50%","  90%", "  100%"))  +
+  scale_size(name="",range = c(.5, 45),breaks=c(.5,125),labels=c("10 deaths",paste(as.character(prettyNum(max(onsetdaydeathplot$number.death),big.mark=",", scientific=F)),"deaths")))+
+  ggtitle(notationdf$title)+
+  theme_ipsum() + 
+  theme(panel.grid.minor=element_blank())
+gg<-gg + theme(legend.position = "top")+ theme(plot.title = element_text(color="lightgrey", size=14))+ scale_color_jcolors(name="size = total cases",palette = "pal3")
+gg+guides(color = guide_legend(order=1),
+         size = FALSE,
+         shape = FALSE)+ theme(legend.background = element_rect(fill="#ffffff",
+                                  size=0.5, linetype="solid", 
+                                  colour ="#efefef"))
+} else {
+ knitr::include_graphics(thefile1)
+}
+
+
+```
+
+```{r deathspread,eval=do_it,echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.width=10,fig.height=4, cache=FALSE}
+#if(TRUE){
+if((as.numeric(Sys.Date()-(as.Date(file.info(thefile2)$mtime-9*60*60))>0 | (!file.exists(thefile2))))){
+ymaxrange<-onsetdaydeathplot %>%
+           filter(Country.Region==id)
+ymaxrangeupper<-max(ymaxrange$new.deaths.in.last.7.days*ymaxrange$number.death/100)
+
+
+gg<-ggplot(onsetdaydeathplot)+
+  geom_line(aes(day.since.onset.10death,
+                  new.deaths.in.last.7.days*number.death/100,
+                group=Country.Region,
+                colour=continent.y),
+                alpha=.1,
+                show.legend=FALSE)+
+    geom_point(data=onsetdaydeathplot %>% group_by(Country.Region) %>% filter(Date == max(Date)) %>% ungroup() , 
+             aes(day.since.onset.10death,
+                  new.deaths.in.last.7.days*number.death/100,
+                 group=Country.Region,
+                 colour=continent.y),
+                 alpha=.1,
+             size=.5,
+                show.legend=FALSE)+
+      geom_point(data=onsetdaydeathplot %>% group_by(Country.Region) %>% filter(Country.Region==id,Date == max(Date)) %>% ungroup() , 
+             aes(day.since.onset.10death,
+                  new.deaths.in.last.7.days*number.death/100,
+                 group=Country.Region,
+                 colour=continent.y),
+                 alpha=.8,size=3,shape=3,
+                show.legend=FALSE)+
+    geom_line(data=ymaxrange,
+              aes(day.since.onset.10death,
+                  new.deaths.in.last.7.days*number.death/100,
+                group=Country.Region,
+                colour=continent.y),
+                alpha=.8, size=1,
+                show.legend=FALSE)+
+    geom_text_repel(data=onsetdaydeathplot %>% filter(Country.Region==id,Date == max(Date)) ,
+                  aes(day.since.onset.10death,
+                  new.deaths.in.last.7.days*number.death/100,
+                      label=Country.Region),
+                  force=10,
+                  nudge_x=10,  
+                  segment.color = "grey90") +
+    geom_text_repel(data=onsetdaydeathplot %>% filter(Country.Region!=id,Date == max(Date),(new.deaths.in.last.7.days*number.death/100>(ymaxrangeupper/2)) | day.since.onset.10death>-1+max(onsetdaydeathplot$day.since.onset.10death[onsetdaydeathplot$Country.Region==id], na.rm = T)) ,
+                  aes(day.since.onset.10death,
+                new.deaths.in.last.7.days/100*number.death,
+                      label=Country.Region),
+                  force=10,
+                  nudge_x=1,  
+                  segment.color = "grey90",
+                  alpha=.2) +
+  scale_y_continuous("total deaths in last 7 days", label=comma,limits=c(0,1.2*ymaxrangeupper))+
+  scale_x_continuous("days since 10 deaths",limits=c(0,1.2*max(onsetdaydeathplot$day.since.onset.10death)),breaks = seq(0, 1.2*max(onsetdaydeathplot$day.since.onset.10death), by = 28))  +
+  theme_ipsum()+ scale_color_jcolors(palette = "pal3")+ 
+  theme(panel.grid.minor=element_blank())
+gg + theme(legend.position = "none")+ theme(plot.title = element_text(color="lightgrey", size=14))+ scale_color_jcolors(palette = "pal3")
+} else{
+   knitr::include_graphics(thefile2)
+}
+
+```
+
+***
+
+# Other Countries
+
+Data for all countries with COVID-19 activity (last Updated: `r format(Sys.time(), format='%H:%M, %B %d, %Y (%Z)')`) are accessible using the table below. Searches can be done via [regex](https://regex101.com/) using the search box above the table. 
+
+This means that if you want to see the numbers for Sweden, Norway and Denmark only: type **sweden|norway|denmark** into the search box.
+
+Click <i class="fas fa-mouse-pointer" style="color:#009AD0"></i> on a country name in the table below to go to that country's summary page.
+
+<br><br>
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, out.width="100%",fig.height=8 }
+
+datatable(df.table ,
+          colnames = c("<i class=\"fas fa-globe-americas \"></i>",
+                       "<i class=\"fas fa-procedures \" title=\"Total confirmed COVID19 cases\" > </i> Cases",
+                       "<i class=\"fas fa-book-dead \" title=\"Total COVID19 fatalities\"> </i> Deaths",
+                       "<i class=\"fas fa-book-dead \" title=\"Percent of identified COVID19 cases that prove fatal\">&nbsp</i><i class=\"fas fa-percent\"></i>",
+                       "<i class=\"fas fa-vial\" title=\"Tests\"> </i> Tests",
+                       "<i class=\"fas fa-vial\" title=\"Tests\"></i> per 1M <i class=\"fas fa-male\" title=\"people in country\">",
+                       "<i class=\"fas fa-male\" title=\"people in country\">  </i> Population"),
+          options = list( order = list(list(2,'desc')),
+                          search = list(regex = TRUE, caseInsensitive = TRUE),
+                          columnDefs = list(list(className = 'dt-right', targets = 1:6) 
+                                            )
+                        ),
+          rownames = FALSE, 
+          escape=F,
+          autoHideNavigation =T)
+
+
+
+```
+
+
+***
+<!-- 
+<center>
+<button class="button"  onclick="location.href='http://llvll.ch/indexfull.html'" ><span> <i class="fas fa-globe-americas"> </i> <i class="fas fa-mouse-pointer"></i>  click for analysis</span></button>
+</center>
+<br>
+-->
+
+## Data Sources: 
+- COVID19 Historical: [Johns Hopkins CSSE](https://github.com/CSSEGISandData/COVID-19/blob/master/README.md)
+- Issues: [Github](https://github.com/CSSEGISandData/COVID-19/issues)
+- COVID19 Live: [Worldometers](https://www.worldometers.info/coronavirus/)
