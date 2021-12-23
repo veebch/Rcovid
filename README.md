@@ -2,7 +2,7 @@
 
 The .Rmd file that generates the COVID19 plots hosted at llvll.ch.
 
-![alt text](https://github.com/veebch/Rccovid/blob/main/screenshot.png?raw=true)
+![alt text](https://github.com/veebch/Rcovid/blob/main/screenshot.png?raw=true)
 
 # Source
 
