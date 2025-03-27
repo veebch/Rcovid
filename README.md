@@ -2,7 +2,6 @@
 
 # COVID19 data, scraped and reported by country
 
-The R scripts that generates the COVID19 plots hosted at [llvll.ch](https://llvll.ch).
 
 ![screenshot](screenshot.png)
 
